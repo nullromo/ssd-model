@@ -37,6 +37,7 @@ SSD Commands:
 #TODO: reading memory that hasn't been written to should probably return all zeros very quickly
 #TODO: page_state_store and such should maybe be ranges at a time. Not sure we even care about these.
 #TODO: error handling when memory is full
+#TODO: make separate storage files and allow user to specify (not urgent)
 #TODO: serialize memory array and maps
 
 # parameters
@@ -244,14 +245,6 @@ def page_state_store(block_address, page_address, state):
     physical_page_state[block_address][page_address] = state;
     return;
 
-def interactive(num_blocks=NUM_BLOCKS, pages_per_block=PAGES_PER_BLOCK, bytes_per_page=BYTES_PER_PAGE):
-    init(num_blocks, pages_per_block, bytes_per_page);
-    while True:
-        command = raw_input('Type something: ');
-        command = command.strip();
-        execute(command);
-    return
-
 # prints the state of the SSD
 def print_SSD(what='all'):
     if what in ['all', 'mem','memory']:
@@ -304,7 +297,7 @@ def init(num_blocks, pages_per_block, bytes_per_page):
     page_map = [[None] * PAGES_PER_BLOCK for _ in range(NUM_BLOCKS)]; 
 
 # runs the memory through a series of tests specified by a filename
-def main(filename):
+def test(filename):
     with open(filename, 'r') as testfile:
         num_blocks = int(re.sub(r'.*=', '', testfile.readline()).strip());
         pages_per_block = int(re.sub(r'.*=', '', testfile.readline()).strip());
@@ -312,6 +305,16 @@ def main(filename):
         init(num_blocks, pages_per_block, bytes_per_page);
         for command in testfile.readlines():
             execute(command);
+
+# runs an i/o operation on the SSD
+def main(operation, arg1, arg2):
+    if operation == 'read':
+        print read(int(arg1), int(arg2));
+    elif operation == 'write':
+        write(int(arg1), arg2);
+    else:
+        raise RuntimeError
+    print log
 
 # executes an SSD operation from a user command
 def execute(command):
@@ -347,20 +350,27 @@ def execute(command):
         print 'Invalid command'
     return;
 
-#Usage: 
-# To run a series of tests, use
-#   python ssd.py <testfile name>
-#
-# To run interactive mode, use
-#   python ssd.py
-#
-# To run interactive mode with specified parameters, use
-#   python ssd.py <num_blocks> <pages_per_block> <bytes_per_page>
-#
+usage="""
+Usage: 
+ To run a series of tests, use
+   python ssd.py test <testfile name>
+
+ To run a single i/o operation, use
+   python ssd.py [read|write] <i/o parameters>
+
+ To run a single i/o operation with specified parameters, use
+   python ssd.py [read|write] <i/o parameters> <num_blocks> <pages_per_block> <bytes_per_page>
+
+"""
 if __name__ == '__main__':
-    if len(sys.argv) == 2:
-        main(sys.argv[1]);
+    if len(sys.argv) == 3 and sys.argv[1] == 'test':
+        test(sys.argv[2]);
     elif len(sys.argv) == 4:
-        interactive(num_blocks=int(sys.argv[1]), pages_per_block=int(sys.argv[2]), bytes_per_page=int(sys.argv[3]));
+        init(NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE);
+        main(sys.argv[1], sys.argv[2], sys.argv[3]);
+    elif len(sys.argv) == 7:
+        init(int(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6]));
+        main(sys.argv[1], sys.argv[2], sys.argv[3]);
     else:
-        interactive();
+        print usage;
+        raise RuntimeError

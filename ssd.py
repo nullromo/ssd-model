@@ -3,6 +3,8 @@ import sys;
 import ast;
 import re;
 import random;
+import shutil;
+import os;
 
 """
 SSD Commands:
@@ -39,6 +41,7 @@ SSD Commands:
 #TODO: error handling when memory is full
 #TODO: make separate storage files and allow user to specify (not urgent)
 #TODO: serialize memory array and maps
+#TODO: accesses are only 8 bytes at a time and they are 8-byte aligned
 
 # parameters
 NUM_BLOCKS = 4;
@@ -100,7 +103,7 @@ def read_page(block_address, page_address):
         return None;
     log.append('page read');
     block_address, page_address = page_location;
-    return blocks[block_address][page_address][:];
+    return from_disk(block_address, page_address);
 
 # performs a write to memory using an arbitrary array of data starting from any byte address
 def write(address, data, avoid=None):
@@ -137,8 +140,18 @@ def write_page(block_address, page_address, page):
     check_address('page', page_address);
     block_address, page_address = page_map_get(block_address,page_address);
     log.append('page write');
-    blocks[block_address][page_address] = page;
+    to_disk(block_address, page_address, page);
     page_state_store(block_address, page_address, PageState.IN_USE);
+    return;
+
+# takes an array access into the memory and turns it into a file access
+def from_disk(block_address, page_address):
+
+    return blocks[block_address][page_address][:];
+
+#takes an array write into the memory and turns it into a file write
+def to_disk(block_address, page_address, page):
+    blocks[block_address][page_address] = page;
     return;
 
 # finds an available location in physical memory for a page to be stored
@@ -295,6 +308,8 @@ def init(num_blocks, pages_per_block, bytes_per_page):
     blocks = [[[0] * BYTES_PER_PAGE for _ in range(PAGES_PER_BLOCK)] for __ in range(NUM_BLOCKS)];
     physical_page_state = [[PageState.AVAILABLE] * PAGES_PER_BLOCK for _ in range(NUM_BLOCKS)];
     page_map = [[None] * PAGES_PER_BLOCK for _ in range(NUM_BLOCKS)]; 
+    if not os.path.exists('data/'):
+        os.mkdir('data/');
 
 # runs the memory through a series of tests specified by a filename
 def test(filename):
@@ -350,6 +365,10 @@ def execute(command):
         print 'Invalid command'
     return;
 
+# deletes all the files that hold the contents of the drive
+def wipe():
+    shutil.rmtree('data/');
+
 usage="""
 Usage: 
  To run a series of tests, use
@@ -363,7 +382,9 @@ Usage:
 
 """
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == 'test':
+    if len(sys.argv) == 2 and sys.argv[1] == 'wipe':
+        wipe();
+    elif len(sys.argv) == 3 and sys.argv[1] == 'test':
         test(sys.argv[2]);
     elif len(sys.argv) == 4:
         init(NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE);

@@ -301,13 +301,12 @@ def print_page_state():
 # prints the physical memory
 def print_memory():
     print 'PHYSICAL MEMORY'
-    for block_num, block in enumerate(blocks):
-        print 'BLOCK ' + str(block_num)
-        for page_num, page in enumerate(block):
-            sys.stdout.write('  PAGE ' + str(page_num));
-            for x in page:
-                sys.stdout.write('\t' + str(x));
-            print
+    for block_num in range(NUM_BLOCKS):
+        with open('data/' + str(block_num) + '.block', 'r') as block:
+            print 'BLOCK ' + str(block_num)
+            for page_num in range(PAGES_PER_BLOCK):
+                sys.stdout.write('  PAGE ' + str(page_num) + '  ');
+                print block.read(BYTES_PER_PAGE);
 
 # initializes the memory with certain parameters
 def init(num_blocks, pages_per_block, bytes_per_page):
@@ -400,7 +399,7 @@ def execute(command):
         else:
             print 'Success: ' + command
     else:
-        print 'Invalid command'
+        print 'Invalid command: ' + command
     return;
 
 usage="""

@@ -5,6 +5,7 @@ import re;
 import random;
 import shutil;
 import os;
+import pickle;
 
 """
 SSD Commands:
@@ -146,8 +147,9 @@ def write_page(block_address, page_address, page):
 
 # takes an array access into the memory and turns it into a file access
 def from_disk(block_address, page_address):
-
-    return blocks[block_address][page_address][:];
+    with open('data/' + str(block_address) + '.block', 'r') as block:
+        block.seek(page_address*BYTES_PER_PAGE);
+        return block.read(BYTES_PER_PAGE);
 
 #takes an array write into the memory and turns it into a file write
 def to_disk(block_address, page_address, page):
@@ -300,16 +302,40 @@ def print_memory():
 # initializes the memory with certain parameters
 def init(num_blocks, pages_per_block, bytes_per_page):
     global NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE, BYTES_PER_BLOCK, MEMORY_CAPACITY, blocks, physical_page_state, page_map;
+    if os.path.exists('data/'):
+        shutil.rmtree('data/');
     NUM_BLOCKS = num_blocks;
     PAGES_PER_BLOCK = pages_per_block;
     BYTES_PER_PAGE = bytes_per_page;
     BYTES_PER_BLOCK = BYTES_PER_PAGE * PAGES_PER_BLOCK;
     MEMORY_CAPACITY = BYTES_PER_BLOCK * NUM_BLOCKS;
+    os.mkdir('data/');
     blocks = [[[0] * BYTES_PER_PAGE for _ in range(PAGES_PER_BLOCK)] for __ in range(NUM_BLOCKS)];
     physical_page_state = [[PageState.AVAILABLE] * PAGES_PER_BLOCK for _ in range(NUM_BLOCKS)];
     page_map = [[None] * PAGES_PER_BLOCK for _ in range(NUM_BLOCKS)]; 
-    if not os.path.exists('data/'):
-        os.mkdir('data/');
+    save_metadata();
+
+# saves the page map and state map to disk
+def save_metadata():
+    if os.path.exists('meta/'):
+        shutil.rmtree('meta/');
+    os.mkdir('meta/');
+    with open('meta/physical_page_state', 'w') as f:
+        pickle.dump(physical_page_state, f);
+    with open('meta/page_map', 'w') as f:
+        pickle.dump(page_map, f);
+    with open('meta/parameters', 'w') as f:
+        pickle.dump((NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE, BYTES_PER_BLOCK, MEMORY_CAPACITY), f);
+
+# loads all the ssd metadata from the disk
+def load_metadata():
+    global NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE, BYTES_PER_BLOCK, MEMORY_CAPACITY, blocks, physical_page_state, page_map;
+    with open('meta/parameters', 'r') as f:
+        NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE, BYTES_PER_BLOCK, MEMORY_CAPACITY = pickle.load(f);
+    with open('meta/page_map', 'r') as f:
+        page_map = pickle.load(f);
+    with open('meta/physical_page_state', 'r') as f:
+        physical_page_state = pickle.load(f);
 
 # runs the memory through a series of tests specified by a filename
 def test(filename):
@@ -329,6 +355,7 @@ def main(operation, arg1, arg2):
         write(int(arg1), arg2);
     else:
         raise RuntimeError
+    save_metadata();
     print log
 
 # executes an SSD operation from a user command
@@ -365,10 +392,6 @@ def execute(command):
         print 'Invalid command'
     return;
 
-# deletes all the files that hold the contents of the drive
-def wipe():
-    shutil.rmtree('data/');
-
 usage="""
 Usage: 
  To run a series of tests, use
@@ -382,16 +405,14 @@ Usage:
 
 """
 if __name__ == '__main__':
-    if len(sys.argv) == 2 and sys.argv[1] == 'wipe':
-        wipe();
+    if len(sys.argv) == 2 and sys.argv[1] == 'init':
+        init(NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE);
     elif len(sys.argv) == 3 and sys.argv[1] == 'test':
         test(sys.argv[2]);
     elif len(sys.argv) == 4:
-        init(NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE);
         main(sys.argv[1], sys.argv[2], sys.argv[3]);
-    elif len(sys.argv) == 7:
-        init(int(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6]));
-        main(sys.argv[1], sys.argv[2], sys.argv[3]);
+    elif len(sys.argv) == 5 and sys.argv[1] == 'init':
+        init(int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]));
     else:
         print usage;
         raise RuntimeError

@@ -6,6 +6,7 @@ import random;
 import shutil;
 import os;
 import pickle;
+import array;
 
 """
 SSD Commands:
@@ -40,9 +41,9 @@ SSD Commands:
 #TODO: reading memory that hasn't been written to should probably return all zeros very quickly
 #TODO: page_state_store and such should maybe be ranges at a time. Not sure we even care about these.
 #TODO: error handling when memory is full
-#TODO: make separate storage files and allow user to specify (not urgent)
 #TODO: serialize memory array and maps
 #TODO: accesses are only 8 bytes at a time and they are 8-byte aligned
+#TODO: make separate storage files for separate SSD's and allow user to specify (not urgent)
 
 # parameters
 NUM_BLOCKS = 4;
@@ -53,7 +54,7 @@ BYTES_PER_PAGE = 8;# = 2000;
 BYTES_PER_BLOCK = None;
 MEMORY_CAPACITY = None;
 
-# class to represent an enum (since enums were not untroduced until Python 3)
+# class to represent an enum (since enums were not introduced until Python 3)
 class Enum(set):
     def __getattr__(self, name):
         if name in self:
@@ -147,13 +148,22 @@ def write_page(block_address, page_address, page):
 
 # takes an array access into the memory and turns it into a file access
 def from_disk(block_address, page_address):
+    data = None;
     with open('data/' + str(block_address) + '.block', 'r') as block:
         block.seek(page_address*BYTES_PER_PAGE);
-        return block.read(BYTES_PER_PAGE);
+        data = block.read(BYTES_PER_PAGE);
+    return [x for x in data];
 
 #takes an array write into the memory and turns it into a file write
 def to_disk(block_address, page_address, page):
-    blocks[block_address][page_address] = page;
+    old_contents = None;
+    with open('data/' + str(block_address) + '.block', 'r') as block:
+        old_contents = block.read(BYTES_PER_PAGE*PAGES_PER_BLOCK);
+    new_contents = old_contents[0:BYTES_PER_PAGE*page_address];
+    new_contents += ''.join(chr(i) for i in page);
+    new_contents += old_contents[BYTES_PER_PAGE*(page_address+1):];
+    with open('data/' + str(block_address) + '.block', 'wb') as block:
+        block.write(array.array('B', new_contents));
     return;
 
 # finds an available location in physical memory for a page to be stored
@@ -310,6 +320,10 @@ def init(num_blocks, pages_per_block, bytes_per_page):
     BYTES_PER_BLOCK = BYTES_PER_PAGE * PAGES_PER_BLOCK;
     MEMORY_CAPACITY = BYTES_PER_BLOCK * NUM_BLOCKS;
     os.mkdir('data/');
+    empty_block = chr(0) * BYTES_PER_PAGE * PAGES_PER_BLOCK;
+    for x in range(NUM_BLOCKS):
+        with open('data/' + str(x) + '.block', 'wb') as block:
+            block.write(array.array('B', empty_block));
     blocks = [[[0] * BYTES_PER_PAGE for _ in range(PAGES_PER_BLOCK)] for __ in range(NUM_BLOCKS)];
     physical_page_state = [[PageState.AVAILABLE] * PAGES_PER_BLOCK for _ in range(NUM_BLOCKS)];
     page_map = [[None] * PAGES_PER_BLOCK for _ in range(NUM_BLOCKS)]; 
@@ -349,12 +363,9 @@ def test(filename):
 
 # runs an i/o operation on the SSD
 def main(operation, arg1, arg2):
-    if operation == 'read':
-        print read(int(arg1), int(arg2));
-    elif operation == 'write':
-        write(int(arg1), arg2);
-    else:
-        raise RuntimeError
+    load_metadata();
+    command = ' '.join([operation, arg1, arg2]);
+    execute(command);
     save_metadata();
     print log
 
@@ -383,7 +394,7 @@ def execute(command):
         garbage_collection();
     elif command.startswith('expect'):
         args = command.split(' ');
-        if read(int(args[1]), int(args[2])) != ast.literal_eval(args[3]):
+        if read(int(args[1]), int(args[2])) != [chr(x) for x in ast.literal_eval(args[3])]:
             print 'FAILED'
             exit();
         else:

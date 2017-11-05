@@ -88,7 +88,7 @@ def read(address, length):
         byte_address_in_page = byte_address_in_block % BYTES_PER_PAGE;
         data = read_page(block_address, page_address);
         if data == None:
-            data = [0] * BYTES_PER_PAGE;
+            data = [chr(0)] * BYTES_PER_PAGE;
         begin_index = byte_address_in_page;
         end_index = min(length + begin_index - 1, BYTES_PER_PAGE - 1);
         read_data.extend(data[begin_index:end_index + 1]);
@@ -160,7 +160,7 @@ def to_disk(block_address, page_address, page):
     with open('data/' + str(block_address) + '.block', 'r') as block:
         old_contents = block.read(BYTES_PER_PAGE*PAGES_PER_BLOCK);
     new_contents = old_contents[0:BYTES_PER_PAGE*page_address];
-    new_contents += ''.join(chr(i) for i in page);
+    new_contents += ''.join(chr(i) if isinstance(i,int) else i for i in page);
     new_contents += old_contents[BYTES_PER_PAGE*(page_address+1):];
     with open('data/' + str(block_address) + '.block', 'wb') as block:
         block.write(array.array('B', new_contents));
@@ -366,7 +366,6 @@ def main(operation, arg1, arg2):
     command = ' '.join([operation, arg1, arg2]);
     execute(command);
     save_metadata();
-    print log
 
 # executes an SSD operation from a user command
 def execute(command):
@@ -406,12 +405,16 @@ usage="""
 Usage: 
  To run a series of tests, use
    python ssd.py test <testfile name>
+ This will wipe the current contents of the ssd.
+
+ To initialize the ssd, use
+   python ssd.py init {<num_blocks> <pages_per_block> <bytes_per_page>}
+
+ To print the state of the ssd, use
+   python ssd.py print [all|memory|mem|state|map]
 
  To run a single i/o operation, use
    python ssd.py [read|write] <i/o parameters>
-
- To run a single i/o operation with specified parameters, use
-   python ssd.py [read|write] <i/o parameters> <num_blocks> <pages_per_block> <bytes_per_page>
 
 """
 if __name__ == '__main__':
@@ -419,6 +422,8 @@ if __name__ == '__main__':
         init(NUM_BLOCKS, PAGES_PER_BLOCK, BYTES_PER_PAGE);
     elif len(sys.argv) == 3 and sys.argv[1] == 'test':
         test(sys.argv[2]);
+    elif len(sys.argv) == 3 and sys.argv[1] == 'print':
+        main(sys.argv[1], sys.argv[2], '');
     elif len(sys.argv) == 4:
         main(sys.argv[1], sys.argv[2], sys.argv[3]);
     elif len(sys.argv) == 5 and sys.argv[1] == 'init':

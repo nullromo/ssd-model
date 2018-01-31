@@ -154,7 +154,7 @@ def from_disk(block_address, page_address):
         data = block.read(BYTES_PER_PAGE);
     return [x for x in data];
 
-#takes an array write into the memory and turns it into a file write
+# takes an array write into the memory and turns it into a file write
 def to_disk(block_address, page_address, page):
     old_contents = None;
     with open('data/' + str(block_address) + '.block', 'r') as block:
